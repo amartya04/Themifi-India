@@ -1,14 +1,19 @@
 import streamlit as st
 import pandas as pd
+import datetime
+import textwrap
 
 # Import the live data fetching module (keeps our main app modular and uncluttered!)
 try:
     from data_fetcher import fetch_live_fund_data, STATIC_FUNDS_DB
 except ImportError:
-    # Safe local fallback inside the sandbox
-    import sys
-    sys.path.append("/workspace/scratch")
-    from data_fetcher import fetch_live_fund_data, STATIC_FUNDS_DB
+    try:
+        from data_fetcher_v2 import fetch_live_fund_data, STATIC_FUNDS_DB
+    except ImportError:
+        # Safe local fallback inside the sandbox
+        import sys
+        sys.path.append("/workspace/scratch")
+        from data_fetcher_v2 import fetch_live_fund_data, STATIC_FUNDS_DB
 
 # Set page configurations
 st.set_page_config(
@@ -182,9 +187,9 @@ else:
 # E. Compute Final Theme Scores
 ranked_data = []
 for t in themes_db:
-    base_score = (t["policyBase"] * weights["policy"] + 
-                  t["longevityBase"] * weights["longevity"] + 
-                  t["qualityBase"] * weights["quality"] + 
+    base_score = (t["policyBase"] * weights["policy"] + \
+                  t["longevityBase"] * weights["longevity"] + \
+                  t["qualityBase"] * weights["quality"] + \
                   t["priceBase"] * weights["price"])
     
     final_score = base_score * style_mults[t["id"]] * capex_mults[t["id"]] * sentiment_mult
@@ -235,7 +240,7 @@ st.markdown("---")
 st.subheader("🏆 Theme Leaderboard Ranking")
 st.dataframe(
     df_ranked.drop(columns=["ID", "Description"]),
-    width="stretch",
+    use_container_width=True,
     hide_index=True
 )
 
@@ -243,9 +248,15 @@ st.markdown("---")
 
 # Curated Recommendations (Top 3 Scoring Themes)
 st.subheader("💡 Curated Recommendations (Top 3 Scoring Themes)")
+
+# Data Source Status Info Alert
+st.info("ℹ️ **Data Transparency Status Panel:** Recommended products load from Yahoo Finance using a local 6-hour cache. If offline, the engine activates historical fallbacks automatically.")
+
 top_themes = df_ranked.head(3)
 
 card_cols = st.columns(3)
+current_time = datetime.datetime.now()
+
 for idx, row in top_themes.iterrows():
     theme_id = row["ID"]
     theme_name = row["Theme / Sector Name"]
@@ -255,6 +266,30 @@ for idx, row in top_themes.iterrows():
     
     # FETCH REAL-TIME DATA VIA DYNAMIC API MODULAR HANDOFF
     fund = fetch_live_fund_data(theme_id)
+    
+    # Calculate caching age and fetch status
+    status_label = "⚠️ Fallback (Stale Data)"
+    status_color = "#ea580c" # Orange
+    status_desc = "Offline mode. Showing static research database."
+    
+    if fund.get("is_live", False):
+        fetched_at_str = fund.get("fetched_at", "")
+        try:
+            fetched_time = datetime.datetime.strptime(fetched_at_str, "%Y-%m-%d %H:%M:%S")
+            time_diff_sec = (current_time - fetched_time).total_seconds()
+        except Exception:
+            time_diff_sec = 0
+            
+        if time_diff_sec > 5:
+            status_label = "⚡ Cached (Live)"
+            status_color = "#2563eb" # Blue
+            status_desc = f"Loaded from cache (Age: {int(time_diff_sec)}s)."
+        else:
+            status_label = "🟢 Newly Fetched (Live)"
+            status_color = "#16a34a" # Green
+            status_desc = "Directly retrieved from live API."
+    else:
+        fetched_at_str = fund.get("fetched_at", datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
     
     # Generate daily price movement tag
     price_tracker_html = ""
@@ -278,18 +313,34 @@ for idx, row in top_themes.iterrows():
         
     price_tracker_clean = " ".join(price_tracker_html.split())
     
+    # Build Status Block HTML
+    status_block_html = f"""
+    <div style="font-size: 11px; margin-top: 8px; display: flex; flex-direction: column; gap: 2px;">
+        <div style="display: flex; align-items: center; gap: 5px;">
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: {status_color};"></span>
+            <strong style="color: {status_color}; font-weight: 700;">{status_label}</strong>
+        </div>
+        <div style="color: #64748b; font-size: 10px; padding-left: 13px; line-height: 1.3;">
+            Last Fetched: {fetched_at_str} <br/>
+            {status_desc}
+        </div>
+    </div>
+    """
+    status_block_clean = " ".join(status_block_html.split())
+    
     with card_cols[idx]:
         card_html = f"""
-        <div style="background-color: #f8fafc; padding: 22px; border-radius: 14px; border-left: 6px solid #1e3a8a; height: 100%; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
+        <div style="background-color: #f8fafc; padding: 22px; border-radius: 14px; border-left: 6px solid #1e3a8a; height: 100%; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05); text-align: left;">
             <span style="font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.05em;">Rank #{idx+1} Theme</span>
-            <h3 style="margin-top: 5px; color: #1e3a8a; font-size: 18px; font-weight: 800; line-height: 1.3;">{theme_name}</h3>
-            <p style="font-size: 13px; color: #475569; margin-top: 6px; line-height: 1.5;">{desc_val}</p>
+            <h3 style="margin-top: 5px; color: #1e3a8a; font-size: 18px; font-weight: 800; line-height: 1.3; margin-bottom: 5px;">{theme_name}</h3>
+            <p style="font-size: 13px; color: #475569; margin-top: 6px; line-height: 1.5; margin-bottom: 10px;">{desc_val}</p>
             <hr style="margin: 16px 0; border: none; border-top: 1px solid #e2e8f0;"/>
             <span style="font-size: 11px; font-weight: 700; color: #475569; text-transform: uppercase; letter-spacing: 0.05em;">Best Fit Product Solution</span>
-            <h4 style="margin-top: 3px; color: #0f172a; font-size: 15px; font-weight: 700;">{fund['name']}</h4>
-            <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 1px;">({fund['type']})</div>
+            <h4 style="margin-top: 3px; color: #0f172a; font-size: 15px; font-weight: 700; margin-bottom: 2px;">{fund['name']}</h4>
+            <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 1px; margin-bottom: 8px;">({fund['type']})</div>
             
             {price_tracker_clean}
+            {status_block_clean}
             
             <div style="display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 14px; padding: 12px; background-color: #f1f5f9; border-radius: 8px; font-size: 12px; color: #1e293b;">
                 <div><strong style="color: #0f172a;">AUM Footprint:</strong> {fund['aum']}</div>
