@@ -1,5 +1,4 @@
 import streamlit as st
-import textwrap
 import pandas as pd
 
 # Import the live data fetching module (keeps our main app modular and uncluttered!)
@@ -236,7 +235,7 @@ st.markdown("---")
 st.subheader("🏆 Theme Leaderboard Ranking")
 st.dataframe(
     df_ranked.drop(columns=["ID", "Description"]),
-    use_container_width=True,
+    width="stretch",
     hide_index=True
 )
 
@@ -262,14 +261,14 @@ for idx, row in top_themes.iterrows():
     if fund["price"] != "N/A":
         color_class = "green" if fund["change_pct"] >= 0 else "red"
         symbol = "+" if fund["change_pct"] >= 0 else ""
-        price_tracker_html = textwrap.dedent(f"""
+        price_tracker_html = f"""
         <div style="font-size: 13px; color: #334155; margin-top: 5px;">
             <strong>Live Price (NAV):</strong> {fund['price']} 
             <span style="color: {color_class}; font-weight: bold; margin-left: 5px;">
                 ({symbol}{fund['change_pct']}%)
             </span>
         </div>
-        """)
+        """
     else:
         price_tracker_html = """
         <div style="font-size: 13px; color: #64748b; margin-top: 5px;">
@@ -277,8 +276,10 @@ for idx, row in top_themes.iterrows():
         </div>
         """
         
+    price_tracker_clean = " ".join(price_tracker_html.split())
+    
     with card_cols[idx]:
-        card_html = textwrap.dedent(f"""
+        card_html = f"""
         <div style="background-color: #f8fafc; padding: 22px; border-radius: 14px; border-left: 6px solid #1e3a8a; height: 100%; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.05);">
             <span style="font-size: 11px; font-weight: 700; color: #2563eb; text-transform: uppercase; letter-spacing: 0.05em;">Rank #{idx+1} Theme</span>
             <h3 style="margin-top: 5px; color: #1e3a8a; font-size: 18px; font-weight: 800; line-height: 1.3;">{theme_name}</h3>
@@ -288,7 +289,7 @@ for idx, row in top_themes.iterrows():
             <h4 style="margin-top: 3px; color: #0f172a; font-size: 15px; font-weight: 700;">{fund['name']}</h4>
             <div style="font-size: 11px; color: #64748b; font-weight: 500; margin-top: 1px;">({fund['type']})</div>
             
-            {price_tracker_html}
+            {price_tracker_clean}
             
             <div style="display: grid; grid-template-columns: 1fr; gap: 6px; margin-top: 14px; padding: 12px; background-color: #f1f5f9; border-radius: 8px; font-size: 12px; color: #1e293b;">
                 <div><strong style="color: #0f172a;">AUM Footprint:</strong> {fund['aum']}</div>
@@ -301,8 +302,10 @@ for idx, row in top_themes.iterrows():
                 <div style="font-size: 11px; font-weight: 500; color: #64748b; margin-top: 2px;">Score: {score_val:.2f}/10</div>
             </div>
         </div>
-        """)
-        st.markdown(card_html, unsafe_allow_html=True)
+        """
+        # Collapse all newlines and indentation in card_html to 100% prevent Markdown code-block triggers!
+        card_html_clean = " ".join(card_html.split())
+        st.markdown(card_html_clean, unsafe_allow_html=True)
 
 st.markdown("---")
 st.caption("Disclaimer: This tool is for educational purposes and is built to demonstrate programmatic investment screening frameworks. Please perform self-diligence before making active market investments in India.")
