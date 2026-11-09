@@ -15,6 +15,9 @@ st.set_page_config(
     layout="wide",
 )
 
+# =====================================================================
+# HEADER & SIDEBAR CONTROLS
+# =====================================================================
 st.title("📈 Themifi-India: 2-Stage Thematic Mutual Fund & ETF Screener")
 st.caption(
     "Stage 1 aligns structural Indian themes with your Time Horizon & Macro Sentiment. "
@@ -50,11 +53,17 @@ with st.sidebar:
         default=["Active MF", "Passive ETF"],
     )
 
+    st.subheader("📡 Live Data Controls")
     fetch_live_toggle = st.toggle(
         "Fetch Live NAV / NSE Price (mfapi.in & yfinance)",
         value=False,
         help="Enable to ping live APIs (cached for 6 hours).",
     )
+
+    if st.button("🔄 Refresh Cache Now"):
+        st.cache_data.clear()
+        st.success("API Cache Cleared! Re-fetching latest NAVs & Prices...")
+        st.rerun()
 
     st.divider()
     st.markdown("**Active Pillar Weights for Selected Horizon:**")
@@ -69,6 +78,9 @@ with st.sidebar:
     st.write(f"• **P4 Strategy & Valuation:** `{int(w['p4']*100)}%`")
     st.write(f"• **P5 Manager / ETF Liquidity:** `{int(w['p5']*100)}%`")
 
+# =====================================================================
+# STAGE 1: TOP-DOWN THEME SCREENING
+# =====================================================================
 st.subheader("🧭 Stage 1: Structural Theme Ranking for Your Horizon")
 
 theme_rows = []
@@ -109,6 +121,9 @@ selected_theme_names = st.multiselect(
 
 st.divider()
 
+# =====================================================================
+# STAGE 2: BOTTOM-UP 100-POINT SCORECARD
+# =====================================================================
 st.subheader("🏆 Stage 2: Unified Adaptive 100-Point Fund & ETF Scorecard")
 
 scored_funds = [
@@ -128,7 +143,7 @@ for rank, f in enumerate(scored_funds, start=1):
     live_info = (
         fetch_live_nav_or_price(f["id"], f["type"])
         if fetch_live_toggle
-        else {"live_value": "Toggle Live in Sidebar", "as_of": "Nov 2026"}
+        else {"live_value": "Toggle Live in Sidebar", "as_of": "Nov 2026", "status": "Manual Toggle"}
     )
     display_rows.append(
         {
@@ -150,12 +165,15 @@ for rank, f in enumerate(scored_funds, start=1):
             "P5: Manager/Liquidity (/15)": f["p5_execution"],
             "Guardrail Flag": f["guardrail_flag"],
             "Latest NAV / Price": live_info["live_value"],
+            "Data Feed Status": live_info.get("status", "Offline"),
+            "As Of Date": live_info.get("as_of", "N/A"),
         }
     )
 
 df_scored = pd.DataFrame(display_rows)
 st.dataframe(df_scored, use_container_width=True, hide_index=True)
 
+# Visual Chart + Deep-Dive Inspector
 if not df_scored.empty:
     col1, col2 = st.columns([3, 2])
     with col1:
